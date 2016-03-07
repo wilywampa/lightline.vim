@@ -19,7 +19,11 @@ function! lightline#update() abort
     return
   endif
   let w = winnr()
-  let s = winnr('$') == 1 ? [lightline#statusline(0)] : [lightline#statusline(0), lightline#statusline(1)]
+  if exists('g:focuslost') || (&previewwindow && mode() ==# 'i')
+    let s = repeat([lightline#statusline(1)], 2)
+  else
+    let s = winnr('$') == 1 ? [lightline#statusline(0)] : [lightline#statusline(0), lightline#statusline(1)]
+  endif
   for n in range(1, winnr('$'))
     call setwinvar(n, '&statusline', s[n!=w])
     call setwinvar(n, 'lightline', n!=w)
