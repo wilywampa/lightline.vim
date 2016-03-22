@@ -16,7 +16,7 @@ let s:cuicolors = {
       \ 'base3': [ '15', '230', 'White' ],
       \ 'yellow': [ '3', '136', 'DarkYellow' ],
       \ 'orange': [ '9', '166', 'LightRed' ],
-      \ 'red': [ '1', '124', 'DarkRed' ],
+      \ 'red': [ '160', '160', 'DarkRed' ],
       \ 'magenta': [ '5', '125', 'DarkMagenta' ],
       \ 'violet': [ '13', '61', 'LightMagenta' ],
       \ 'blue': [ '4', '33', 'DarkBlue' ],
@@ -54,20 +54,20 @@ let s:cyan = [ '#2aa198', s:cuicolors.cyan[s:cuiindex] ]
 let s:green = [ '#859900', s:cuicolors.green[s:cuiindex] ]
 
 let s:p = {'normal': {}, 'inactive': {}, 'insert': {}, 'replace': {}, 'visual': {}, 'tabline': {}}
-let s:p.normal.left = [ [ s:base3, s:blue ], [ s:base3, s:base01 ] ]
-let s:p.normal.right = [ [ s:base02, s:base0 ], [ s:base1, s:base01 ] ]
+let s:p.normal.left = [ [ s:base3, s:blue, 'bold' ], [ s:base3, s:base01 ] ]
+let s:p.normal.right = [ [ s:base3, s:base0 ], [ s:base2, s:base01 ] ]
 let s:p.inactive.right = [ [ s:base02, s:base01 ], [ s:base00, s:base02 ] ]
-let s:p.inactive.left =  [ [ s:base0, s:base02 ], [ s:base00, s:base02 ] ]
-let s:p.insert.left = [ [ s:base3, s:green ], [ s:base3, s:base01 ] ]
-let s:p.replace.left = [ [ s:base3, s:red ], [ s:base3, s:base01 ] ]
-let s:p.visual.left = [ [ s:base3, s:magenta ], [ s:base3, s:base01 ] ]
+let s:p.inactive.left =  [ [ s:base00, s:base02 ], [ s:base00, s:base02 ] ]
+let s:p.insert.left = [ [ s:base3, s:yellow, 'bold' ], [ s:base3, s:base01 ] ]
+let s:p.replace.left = [ [ s:base3, s:magenta, 'bold' ], [ s:base3, s:base01 ] ]
+let s:p.visual.left = [ [ s:base3, s:red, 'bold' ], [ s:base3, s:base01 ] ]
 let s:p.normal.middle = [ [ s:base1, s:base02 ] ]
 let s:p.inactive.middle = [ [ s:base0, s:base02 ] ]
-let s:p.tabline.left = [ [ s:base1, s:base00 ] ]
-let s:p.tabline.tabsel = [ [ s:base3, s:base0 ] ]
+let s:p.tabline.left = [ [ s:base0, s:base02 ] ]
+let s:p.tabline.tabsel = [ [ s:base2, s:base01 ] ]
 let s:p.tabline.middle = [ [ s:base01, s:base02 ] ]
 let s:p.tabline.right = copy(s:p.normal.right)
-let s:p.normal.error = [ [ s:base2, s:red ] ]
+let s:p.normal.error = [ [ s:base2, s:orange ] ]
 let s:p.normal.warning = [ [ s:base02, s:yellow ] ]
 
 let g:lightline#colorscheme#solarized_dark#palette = lightline#colorscheme#flatten(s:p)
