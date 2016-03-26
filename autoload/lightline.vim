@@ -2,7 +2,7 @@
 " Filename: autoload/lightline.vim
 " Author: itchyny
 " License: MIT License
-" Last Change: 2016/03/22 09:18:07.
+" Last Change: 2016/03/25 09:05:58.
 " =============================================================================
 
 let s:save_cpo = &cpo
@@ -259,18 +259,22 @@ function! s:term(l) abort
   return len(a:l) == 5 && type(a:l[4]) == 1 && strlen(a:l[4]) ? 'term='.a:l[4].' cterm='.a:l[4].' gui='.a:l[4] : ''
 endfunction
 
-function! s:uniq(l) abort
-  let [l,i,s] = [a:l,0,{}]
-  while i < len(l)
-    let k = string(l[i])
-    if has_key(s, k)
-      call remove(l, i)
-    else
-      let [s[k],i] = [1,i+1]
-    endif
-  endwhile
-  return l
-endfunction
+if exists('*uniq')
+  function! s:uniq(xs) abort
+    return uniq(a:xs)
+  endfunction
+else
+  function! s:uniq(xs) abort
+    let i = len(a:xs) - 1
+    while i > 0
+      if a:xs[i] ==# a:xs[i - 1]
+        call remove(a:xs, i)
+      endif
+      let i -= 1
+    endwhile
+    return a:xs
+  endfunction
+endif
 
 function! lightline#highlight(...) abort
   let [c, f, g] = [s:lightline.palette, s:lightline.mode_fallback, s:lightline.component_type]
@@ -285,7 +289,7 @@ function! lightline#highlight(...) abort
   endif
   let [s:lightline.llen, s:lightline.rlen] = [len(c.normal.left), len(c.normal.right)]
   let [s:lightline.tab_llen, s:lightline.tab_rlen] = [len(has_key(c,'tabline') && has_key(c.tabline, 'left') ? c.tabline.left : c.normal.left), len(has_key(c,'tabline') && has_key(c.tabline, 'right') ? c.tabline.right : c.normal.right)]
-  let h = s:uniq(filter(copy(values(g)), 'v:val !=# "raw"'))
+  let h = s:uniq(sort(filter(values(g), 'v:val !=# "raw"')))
   let modes = a:0 ? [a:1] : extend(['normal', 'insert', 'replace', 'visual', 'inactive', 'command', 'select', 'tabline'], has('nvim') ? ['terminal'] : [])
   for mode in modes
     let s:highlight[mode] = 1
@@ -348,15 +352,9 @@ function! s:subseparator(x, y, s, a, b) abort
         \'(a:b[v:val]?"1":has_key(f,a:y[v:val])?"!!strlen(exists(\"*".f[a:y[v:val]]."\")?".f[a:y[v:val]]."():\"\")":get(v,a:y[v:val],has_key(c,a:y[v:val])?"1":"0"))'),')+(')."))?('".a:s."'):''}"
 endfunction
 
-function! lightline#concatenate(x, s) abort
-  let [_, k, s] = ['', 0, ' ' . [s:lightline.subseparator.left, s:lightline.subseparator.right][!!a:s] . ' ']
-  for i in range(len(a:x))
-    let [_, k] = [_ . a:x[i], k || len(a:x[i])]
-    if k && i + 1 < len(a:x) && len(a:x[i + 1])
-      let _ .= s
-    endif
-  endfor
-  return _
+function! lightline#concatenate(xs, right) abort
+  let separator = a:right ? s:lightline.subseparator.right : s:lightline.subseparator.left
+  return join(filter(copy(a:xs), 'v:val !=# ""'), ' ' . separator . ' ')
 endfunction
 
 function! lightline#statusline(inactive) abort
@@ -397,10 +395,12 @@ function! s:convert(name, index) abort
   endif
 endfunction
 
-function! s:flatten(xss) abort
+function! s:flatten_twice(xss) abort
   let ys = []
   for xs in a:xss
-    let ys += xs
+    for x in xs
+      let ys += x
+    endfor
   endfor
   return ys
 endfunction
@@ -410,7 +410,7 @@ function! s:expand(components) abort
   let expanded = []
   let indices = []
   let previndex = -1
-  let xs = s:flatten(s:flatten(map(deepcopy(a:components), 'map(v:val, "s:convert(v:val, string(" . v:key . "))")')))
+  let xs = s:flatten_twice(map(deepcopy(a:components), 'map(v:val, "s:convert(v:val, string(" . v:key . "))")'))
   for [component, expand, index] in xs
     if previndex != index
       call add(indices, index)
