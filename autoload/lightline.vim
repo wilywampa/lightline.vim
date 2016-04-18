@@ -2,7 +2,7 @@
 " Filename: autoload/lightline.vim
 " Author: itchyny
 " License: MIT License
-" Last Change: 2016/04/08 13:49:53.
+" Last Change: 2016/04/18 01:20:49.
 " =============================================================================
 
 let s:save_cpo = &cpo
@@ -108,8 +108,8 @@ let s:_lightline = {
       \     'absolutepath': '%F', 'relativepath': '%f', 'filename': '%t', 'modified': '%M', 'bufnum': '%n',
       \     'spell': '%{&spell?&spelllang:"no spell"}',
       \     'paste': '%{&paste?"PASTE":""}', 'readonly': '%R', 'charvalue': '%b', 'charvaluehex': '%B',
-      \     'fileencoding': '%{strlen(&fenc)?&fenc:&enc}', 'fileformat': '%{&fileformat}',
-      \     'filetype': '%{strlen(&filetype)?&filetype:"no ft"}', 'percent': '%3p%%', 'percentwin': '%P',
+      \     'fileencoding': '%{&fenc!=#""?&fenc:&enc}', 'fileformat': '%{&ff}',
+      \     'filetype': '%{&ft!=#""?&ft:"no ft"}', 'percent': '%3p%%', 'percentwin': '%P',
       \     'lineinfo': '%3l:%-2v', 'line': '%l', 'column': '%c', 'close': '%999X X '
       \   },
       \   'component_visible_condition': {
@@ -148,7 +148,7 @@ let s:_lightline = {
 function! lightline#init() abort
   let s:lightline = deepcopy(get(g:, 'lightline', {}))
   for [key, value] in items(s:_lightline)
-    if type(value) == type({})
+    if type(value) == 4
       if !has_key(s:lightline, key)
         let s:lightline[key] = {}
       endif
@@ -199,6 +199,15 @@ function! lightline#colorscheme() abort
     call lightline#highlight('normal')
     call lightline#link()
     let s:_ = 0
+    if has('win32') && !has('gui_running') && &t_Co < 256
+      for u in values(s:lightline.palette)
+        for v in values(u)
+          for _  in v
+            let [_[2], _[3]] = [lightline#colortable#gui2cui(_[0], _[2]), lightline#colortable#gui2cui(_[1], _[3])]
+          endfor
+        endfor
+      endfor
+    endif
   endtry
 endfunction
 
@@ -220,38 +229,20 @@ function! lightline#link(...) abort
   if !has_key(s:highlight, mode)
     call lightline#highlight(mode)
   endif
-  let [left, right, types] = [s:lightline.active.left, s:lightline.active.right, values(s:lightline.component_type)]
-  for i in range(len(left))
-    exec printf('hi link LightLineLeft_active_%d LightLineLeft_%s_%d', i, mode, i)
-    exec printf('hi link LightLineLeft_active_%d_%d LightLineLeft_%s_%d_%d', i, i + 1, mode, i, i + 1)
-    for j in types
-      exec printf('hi link LightLineLeft_active_%d_%s LightLineLeft_%s_%d_%s', i, j, mode, i, j)
-      exec printf('hi link LightLineLeft_active_%s_%d LightLineLeft_%s_%s_%d', j, i, mode, j, i)
+  let types = map(s:uniq(sort(filter(values(s:lightline.component_type), 'v:val !=# "raw"'))), '[v:val, 1]')
+  for [p, l] in [['Left', len(s:lightline.active.left)], ['Right', len(s:lightline.active.right)]]
+    for [i, t] in map(range(0, l), '[v:val, 0]') + types
+      if i != l
+        exec printf('hi link LightLine%s_active_%s LightLine%s_%s_%s', p, i, p, mode, i)
+      endif
+      for [j, s] in map(range(0, l), '[v:val, 0]') + types
+        if i + 1 == j || t || s && i != l
+          exec printf('hi link LightLine%s_active_%s_%s LightLine%s_%s_%s_%s', p, i, j, p, mode, i, j)
+        endif
+      endfor
     endfor
   endfor
   exec printf('hi link LightLineMiddle_active LightLineMiddle_%s', mode)
-  for i in range(len(right))
-    exec printf('hi link LightLineRight_active_%d LightLineRight_%s_%d', i, mode, i)
-    exec printf('hi link LightLineRight_active_%d_%d LightLineRight_%s_%d_%d', i, i + 1, mode, i, i + 1)
-    for j in types
-      exec printf('hi link LightLineRight_active_%d_%s LightLineRight_%s_%d_%s', i, j, mode, i, j)
-      exec printf('hi link LightLineRight_active_%s_%d LightLineRight_%s_%s_%d', j, i, mode, j, i)
-    endfor
-  endfor
-  for j in types
-    exec printf('hi link LightLineLeft_active_%s LightLineLeft_%s_%s', j, mode, j)
-    exec printf('hi link LightLineRight_active_%s LightLineRight_%s_%s', j, mode, j)
-    exec printf('hi link LightLineLeft_active_%s_%d LightLineLeft_%s_%s_%d', j, len(left), mode, j, len(left))
-    exec printf('hi link LightLineLeft_active_%d_%s LightLineLeft_%s_%d_%s', len(left), j, mode, len(left), j)
-    exec printf('hi link LightLineRight_active_%s_%d LightLineRight_%s_%s_%d', j, len(right), mode, j, len(right))
-    exec printf('hi link LightLineRight_active_%d_%s LightLineRight_%s_%d_%s', len(right), j, mode, len(right), j)
-    for k in types
-      exec printf('hi link LightLineLeft_active_%s_%s LightLineLeft_%s_%s_%s', j, k, mode, j, k)
-      exec printf('hi link LightLineLeft_active_%s_%s LightLineLeft_%s_%s_%s', k, j, mode, k, j)
-      exec printf('hi link LightLineRight_active_%s_%s LightLineRight_%s_%s_%s', j, k, mode, j, k)
-      exec printf('hi link LightLineRight_active_%s_%s LightLineRight_%s_%s_%s', k, j, mode, k, j)
-    endfor
-  endfor
   return ''
 endfunction
 
@@ -277,79 +268,43 @@ else
 endif
 
 function! lightline#highlight(...) abort
-  let [c, f, g] = [s:lightline.palette, s:lightline.mode_fallback, s:lightline.component_type]
-  if has('win32') && !has('gui_running') && &t_Co < 256
-    for u in values(c)
-      for v in values(u)
-        for _  in v
-          let [_[2], _[3]] = [lightline#colortable#gui2cui(_[0], _[2]), lightline#colortable#gui2cui(_[1], _[3])]
-        endfor
-      endfor
-    endfor
-  endif
+  let [c, f] = [s:lightline.palette, s:lightline.mode_fallback]
   let [s:lightline.llen, s:lightline.rlen] = [len(c.normal.left), len(c.normal.right)]
-  let [s:lightline.tab_llen, s:lightline.tab_rlen] = [len(has_key(c,'tabline') && has_key(c.tabline, 'left') ? c.tabline.left : c.normal.left), len(has_key(c,'tabline') && has_key(c.tabline, 'right') ? c.tabline.right : c.normal.right)]
-  let h = s:uniq(sort(filter(values(g), 'v:val !=# "raw"')))
+  let [s:lightline.tab_llen,  s:lightline.tab_rlen] = [len(has_key(get(c, 'tabline', {}),  'left') ? c.tabline.left : c.normal.left),  len(has_key(get(c, 'tabline', {}),  'right') ? c.tabline.right : c.normal.right)]
+  let types = map(s:uniq(sort(filter(values(s:lightline.component_type), 'v:val !=# "raw"'))), '[v:val, 1]')
   let modes = a:0 ? [a:1] : extend(['normal', 'insert', 'replace', 'visual', 'inactive', 'command', 'select', 'tabline'], has('nvim') ? ['terminal'] : [])
   for mode in modes
     let s:highlight[mode] = 1
     let d = has_key(c, mode) ? mode : has_key(f, mode) && has_key(c, f[mode]) ? f[mode] : 'normal'
     let left = d ==# 'tabline' ? s:lightline.tabline.left : d ==# 'inactive' ? s:lightline.inactive.left : s:lightline.active.left
     let right = d ==# 'tabline' ? s:lightline.tabline.right : d ==# 'inactive' ? s:lightline.inactive.right : s:lightline.active.right
-    let l = has_key(c,d) && has_key(c[d],'left') ? c[d].left : has_key(f,d) && has_key(c,f[d]) && has_key(c[f[d]],'left') ? c[f[d]].left : c.normal.left
-    let r = has_key(c,d) && has_key(c[d],'right') ? c[d].right : has_key(f,d) && has_key(c,f[d]) && has_key(c[f[d]],'right') ? c[f[d]].right : c.normal.right
-    let m = has_key(c,d) && has_key(c[d],'middle') ? c[d].middle[0] : has_key(f,d) && has_key(c,f[d]) && has_key(c[f[d]],'middle') ? c[f[d]].middle[0] : c.normal.middle[0]
-    let [w, x, n] = [len(left), len(right), s:term(m)]
-    for i in range(w)
-      let [li, lj] = [i < len(l) ? l[i] : m, i + 1 < len(l) ? l[i + 1] : m]
-      let p = s:term(li)
-      exec printf('hi LightLineLeft_%s_%d guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, i, li[0], li[1], li[2], li[3], p)
-      exec printf('hi LightLineLeft_%s_%d_%d guifg=%s guibg=%s ctermfg=%s ctermbg=%s', mode,
-            \ i, i+1, i>=len(l) ? m[i+1==w] : li[1], i==w-1 ? m[1] : lj[1], i>=len(l) ? m[2+(i+1==w)] : li[3], i==w-1 ? m[3] : lj[3])
-      for j in h
-        let s = has_key(c,d) && has_key(c[d],j) ? c[d][j][0] : has_key(c,'tabline') && has_key(c.tabline,j) ? c.tabline[j][0] : has_key(c.normal,j) ? c.normal[j][0] : l[0]
-        exec printf('hi LightLineLeft_%s_%d_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, i, j, li[1], s[1], li[3], s[3], p)
-        exec printf('hi LightLineLeft_%s_%s_%d guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, j, i, s[1], li[1], s[3], li[3], p)
+    let ls = has_key(get(c, d, {}), 'left') ? c[d].left : has_key(f, d) && has_key(get(c, f[d], {}), 'left') ? c[f[d]].left : c.normal.left
+    let ms = has_key(get(c, d, {}), 'middle') ? c[d].middle[0] : has_key(f, d) && has_key(get(c, f[d], {}), 'middle') ? c[f[d]].middle[0] : c.normal.middle[0]
+    let rs = has_key(get(c, d, {}), 'right') ? c[d].right : has_key(f, d) && has_key(get(c, f[d], {}), 'right') ? c[f[d]].right : c.normal.right
+    for [p, l, zs] in [['Left', len(left), ls], ['Right', len(right), rs]]
+      for [i, t] in map(range(0, l), '[v:val, 0]') + types
+        if i != l
+          let r = t ? (has_key(get(c, d, []), i) ? c[d][i][0] : has_key(get(c, 'tabline', {}), i) ? c.tabline[i][0] : has_key(c.normal, i) ? c.normal[i][0] : zs[0]) : get(zs, i, ms)
+          exec printf('hi LightLine%s_%s_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', p, mode, i, r[0], r[1], r[2], r[3], s:term(r))
+        endif
+        for [j, s] in map(range(0, l), '[v:val, 0]') + types
+          if i + 1 == j || t || s && i != l
+            let q = s ? (has_key(get(c, d, []), j) ? c[d][j][0] : has_key(get(c, 'tabline', {}), j) ? c.tabline[j][0] : has_key(c.normal, j) ? c.normal[j][0] : zs[0]) : (j != l ? get(zs, j, ms) :ms)
+            exec printf('hi LightLine%s_%s_%s_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s', p, mode, i, j, r[1], q[1], r[3], q[3])
+          endif
+        endfor
       endfor
     endfor
-    exec printf('hi LightLineMiddle_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, m[0], m[1], m[2], m[3], n)
-    for i in range(x)
-      let [ri, rj] = [i < len(r) ? r[i] : m, i + 1 < len(r) ? r[i + 1] : m]
-      let p = s:term(ri)
-      exec printf('hi LightLineRight_%s_%d_%d guifg=%s guibg=%s ctermfg=%s ctermbg=%s', mode,
-            \ i, i+1, i>=len(r) ? m[i+1==x] : ri[1], i==x-1 ? m[1] : rj[1], i>=len(r) ? m[2+(i+1==x)] : ri[3], i==x-1 ? m[3] : rj[3])
-      exec printf('hi LightLineRight_%s_%d guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, i, ri[0], ri[1], ri[2], ri[3], p)
-      for j in h
-        let s = has_key(c,d) && has_key(c[d],j) ? c[d][j][0] : has_key(c,'tabline') && has_key(c.tabline,j) ? c.tabline[j][0] : has_key(c.normal,j) ? c.normal[j][0] : l[0]
-        exec printf('hi LightLineRight_%s_%d_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, i, j, ri[1], s[1], ri[3], s[3], p)
-        exec printf('hi LightLineRight_%s_%s_%d guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, j, i, s[1], ri[1], s[3], ri[3], p)
-      endfor
-    endfor
-    for j in h
-      let s = has_key(c,d) && has_key(c[d],j) ? c[d][j][0] : has_key(c,'tabline') && has_key(c.tabline,j) ? c.tabline[j][0] : has_key(c.normal,j) ? c.normal[j][0] : l[0]
-      let p = s:term(s)
-      exec printf('hi LightLineLeft_%s_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, j, s[0], s[1], s[2], s[3], p)
-      exec printf('hi LightLineRight_%s_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, j, s[0], s[1], s[2], s[3], p)
-      exec printf('hi LightLineLeft_%s_%s_%d guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, j, w, s[1], m[1], s[3], m[3], p)
-      exec printf('hi LightLineLeft_%s_%d_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, w, j, m[1], s[1], m[3], s[3], n)
-      exec printf('hi LightLineRight_%s_%s_%d guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, j, x, s[1], m[1], s[3], m[3], p)
-      exec printf('hi LightLineRight_%s_%d_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, x, j, m[1], s[1], m[3], s[3], n)
-      for k in h
-        let t = has_key(c,d) && has_key(c[d],k) ? c[d][k][0] : has_key(c,'tabline') && has_key(c.tabline,k) ? c.tabline[k][0] : has_key(c.normal,k) ? c.normal[k][0] : l[0]
-        let q = s:term(t)
-        exec printf('hi LightLineLeft_%s_%s_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, j, k, s[1], t[1], s[3], t[3], p)
-        exec printf('hi LightLineLeft_%s_%s_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, k, j, t[1], s[1], t[3], s[3], q)
-        exec printf('hi LightLineRight_%s_%s_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, j, k, s[1], t[1], s[3], t[3], p)
-        exec printf('hi LightLineRight_%s_%s_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, k, j, t[1], s[1], t[3], s[3], q)
-      endfor
-    endfor
+    exec printf('hi LightLineMiddle_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', mode, ms[0], ms[1], ms[2], ms[3], s:term(ms))
   endfor
 endfunction
 
-function! s:subseparator(x, y, s, a, b) abort
-  let [c, f, v] = [ s:lightline.component, s:lightline.component_function,  s:lightline.component_visible_condition ]
-  return '%{('.(a:a?'1':has_key(f,a:x)?'!!strlen(exists("*'.f[a:x].'")?'.f[a:x].'():"")':get(v,a:x,has_key(c,a:x)?'1': '0')).')*(('.join(map(range(len(a:y)),
-        \'(a:b[v:val]?"1":has_key(f,a:y[v:val])?"!!strlen(exists(\"*".f[a:y[v:val]]."\")?".f[a:y[v:val]]."():\"\")":get(v,a:y[v:val],has_key(c,a:y[v:val])?"1":"0"))'),')+(')."))?('".a:s."'):''}"
+function! s:subseparator(components, subseparator, expanded) abort
+  let [a, c, f, v] = [ a:components, s:lightline.component, s:lightline.component_function,  s:lightline.component_visible_condition ]
+  let xs = map(range(len(a:components)), 'a:expanded[v:val] ? "1" :
+        \ has_key(f, a[v:val]) ? (exists("*".f[a[v:val]]) ? "" : "exists(\"*".f[a[v:val]]."\")&&").f[a[v:val]]."()!=#\"\"" :
+        \ has_key(v, a[v:val]) ? "(" . v[a[v:val]] . ")" : has_key(c, a[v:val]) ? "1" : "0"')
+  return '%{' . (xs[0] ==# '1' ? '' : xs[0] . '&&(') . join(xs[1:], '||') . (xs[0] ==# '1' ? '' : ')') . '?"' . a:subseparator . '":""}'
 endfunction
 
 function! lightline#concatenate(xs, right) abort
@@ -377,7 +332,7 @@ endfunction
 function! s:evaluate_expand(component) abort
   try
     let result = eval(a:component . '()')
-    if type(result) == type('') && result ==# ''
+    if type(result) == 1 && result ==# ''
       return []
     endif
   catch
@@ -451,26 +406,28 @@ function! s:line(tabline, inactive) abort
   let r_ = has_key(s:lightline, mode) ? s:lightline[mode].right : s:lightline.active.right
   let [rt, rc, rl] = s:expand(copy(r_))
   for i in range(len(lt))
-    let _ .= printf('%%#LightLineLeft_%s_%s#', mode, ll[i])
+    let _ .= '%#LightLineLeft_' . mode . '_' . ll[i] . '#'
     for j in range(len(lt[i]))
-      let x = substitute('%( '.(lc[i][j] ? lt[i][j] : has_key(f,lt[i][j])?'%{exists("*'.f[lt[i][j]].'")?'.f[lt[i][j]].'():""}':get(c,lt[i][j],'')).' %)', '^%(  %)', '', '')
-      let _ .= has_key(t,lt[i][j])&&t[lt[i][j]]==#'raw'&&strlen(x)>7 ? x[3:-4] : x
+      let x = lc[i][j] ? lt[i][j] : has_key(f, lt[i][j]) ? (exists('*' . f[lt[i][j]]) ? '%{' . f[lt[i][j]] . '()}' : '%{exists("*' . f[lt[i][j]] . '")?' . f[lt[i][j]] . '():""}') : get(c, lt[i][j], '')
+      let _ .= has_key(t, lt[i][j]) && t[lt[i][j]] ==# 'raw' || x ==# '' ? x : '%( ' . x . ' %)'
       if j < len(lt[i]) - 1
-        let _ .= s:subseparator(lt[i][j], lt[i][j+1:], s.left, lc[i][j], lc[i][j+1:])
+        let _ .= s:subseparator(lt[i][(j):], s.left, lc[i][(j):])
       endif
     endfor
-    let _ .= printf('%%#LightLineLeft_%s_%s_%s#', mode, ll[i], ll[i + 1]) . (i < l + len(lt) - len(l_) && ll[i] < l || type(ll[i]) != type(ll[i + 1]) || type(ll[i]) && type(ll[i + 1]) && ll[i] != ll[i + 1] ? p.left : len(lt[i]) ? s.left : '')
+    let _ .= '%#LightLineLeft_' . mode . '_' . ll[i] . '_' . ll[i + 1] . '#'
+    let _ .= i < l + len(lt) - len(l_) && ll[i] < l || ll[i] != ll[i + 1] ? p.left : len(lt[i]) ? s.left : ''
   endfor
-  let _ .= printf('%%#LightLineMiddle_%s#%%=', mode)
+  let _ .= '%#LightLineMiddle_' . mode . '#%='
   for i in reverse(range(len(rt)))
-    let _ .= printf('%%#LightLineRight_%s_%s_%s#', mode, rl[i], rl[i + 1]) . (i < r + len(rt) - len(r_) && rl[i] < r || type(rl[i]) != type(rl[i + 1]) || type(rl[i]) && type(rl[i + 1]) && rl[i] != rl[i + 1] ? p.right : len(rt[i]) ? s.right : '')
-    let _ .= printf('%%#LightLineRight_%s_%s#', mode, rl[i])
+    let _ .= '%#LightLineRight_' . mode . '_' . rl[i] . '_' . rl[i + 1] . '#'
+    let _ .= i < r + len(rt) - len(r_) && rl[i] < r || rl[i] != rl[i + 1] ? p.right : len(rt[i]) ? s.right : ''
+    let _ .= '%#LightLineRight_' . mode . '_' . rl[i] . '#'
     for j in range(len(rt[i]))
-      if j
-        let _ .= s:subseparator(rt[i][j], rt[i][:j-1], s.right, rc[i][j], rc[i][:j-1])
+      let x = rc[i][j] ? rt[i][j] : has_key(f, rt[i][j]) ? (exists('*' . f[rt[i][j]]) ? '%{' . f[rt[i][j]] . '()}' : '%{exists("*' . f[rt[i][j]] . '")?' . f[rt[i][j]] . '():""}') : get(c, rt[i][j], '')
+      let _ .= has_key(t, rt[i][j]) && t[rt[i][j]] ==# 'raw' || x ==# '' ? x : '%( ' . x . ' %)'
+      if j < len(rt[i]) - 1
+        let _ .= s:subseparator(rt[i][(j):], s.right, rc[i][(j):])
       endif
-      let x = substitute('%( '.(rc[i][j] ? rt[i][j] : has_key(f,rt[i][j])?'%{exists("*'.f[rt[i][j]].'")?'.f[rt[i][j]].'():""}':get(c,rt[i][j],'')).' %)', '^%(  %)', '', '')
-      let _ .= has_key(t,rt[i][j])&&t[rt[i][j]]==#'raw'&&strlen(x)>7 ? x[3:-4] : x
     endfor
   endfor
   return _
