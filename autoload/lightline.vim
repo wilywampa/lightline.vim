@@ -2,7 +2,7 @@
 " Filename: autoload/lightline.vim
 " Author: itchyny
 " License: MIT License
-" Last Change: 2016/04/18 01:20:49.
+" Last Change: 2016/04/24 21:48:18.
 " =============================================================================
 
 let s:save_cpo = &cpo
@@ -130,7 +130,7 @@ let s:_lightline = {
       \   'colorscheme': 'default',
       \   'mode_map': {
       \     'n': 'NORMAL', 'i': 'INSERT', 'R': 'REPLACE', 'v': 'VISUAL', 'V': 'V-LINE', "\<C-v>": 'V-BLOCK',
-      \     'c': 'COMMAND', 's': 'SELECT', 'S': 'S-LINE', "\<C-s>": 'S-BLOCK', 't': 'TERMINAL', '?': ''
+      \     'c': 'COMMAND', 's': 'SELECT', 'S': 'S-LINE', "\<C-s>": 'S-BLOCK', 't': 'TERMINAL'
       \   },
       \   'separator': { 'left': '', 'right': '' },
       \   'subseparator': { 'left': '|', 'right': '|' },
@@ -216,7 +216,7 @@ function! lightline#palette() abort
 endfunction
 
 function! lightline#mode() abort
-  return get(s:lightline.mode_map, mode(), s:lightline.mode_map['?'])
+  return get(s:lightline.mode_map, mode(), '')
 endfunction
 
 let s:mode = ''
@@ -246,8 +246,8 @@ function! lightline#link(...) abort
   return ''
 endfunction
 
-function! s:term(l) abort
-  return len(a:l) == 5 && type(a:l[4]) == 1 && strlen(a:l[4]) ? 'term='.a:l[4].' cterm='.a:l[4].' gui='.a:l[4] : ''
+function! s:term(p) abort
+  return get(a:p, 4) !=# '' ? 'term='.a:p[4].' cterm='.a:p[4].' gui='.a:p[4] : ''
 endfunction
 
 if exists('*uniq')
@@ -284,12 +284,12 @@ function! lightline#highlight(...) abort
     for [p, l, zs] in [['Left', len(left), ls], ['Right', len(right), rs]]
       for [i, t] in map(range(0, l), '[v:val, 0]') + types
         if i != l
-          let r = t ? (has_key(get(c, d, []), i) ? c[d][i][0] : has_key(get(c, 'tabline', {}), i) ? c.tabline[i][0] : has_key(c.normal, i) ? c.normal[i][0] : zs[0]) : get(zs, i, ms)
+          let r = t ? (has_key(get(c, d, []), i) ? c[d][i][0] : has_key(get(c, 'tabline', {}), i) ? c.tabline[i][0] : get(c.normal, i, zs)[0]) : get(zs, i, ms)
           exec printf('hi LightLine%s_%s_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s %s', p, mode, i, r[0], r[1], r[2], r[3], s:term(r))
         endif
         for [j, s] in map(range(0, l), '[v:val, 0]') + types
           if i + 1 == j || t || s && i != l
-            let q = s ? (has_key(get(c, d, []), j) ? c[d][j][0] : has_key(get(c, 'tabline', {}), j) ? c.tabline[j][0] : has_key(c.normal, j) ? c.normal[j][0] : zs[0]) : (j != l ? get(zs, j, ms) :ms)
+            let q = s ? (has_key(get(c, d, []), j) ? c[d][j][0] : has_key(get(c, 'tabline', {}), j) ? c.tabline[j][0] : get(c.normal, j, zs)[0]) : (j != l ? get(zs, j, ms) :ms)
             exec printf('hi LightLine%s_%s_%s_%s guifg=%s guibg=%s ctermfg=%s ctermbg=%s', p, mode, i, j, r[1], q[1], r[3], q[3])
           endif
         endfor
