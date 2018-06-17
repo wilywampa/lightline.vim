@@ -5,6 +5,8 @@
 " Last Change: 2017/12/31 15:55:00.
 " =============================================================================
 
+scriptencoding utf-8
+
 let s:save_cpo = &cpo
 set cpo&vim
 
@@ -456,8 +458,8 @@ function! lightline#tabs() abort
   for i in range(1, cnt)
     call add(i < nr ? x : i == nr ? y : z, (i > nr + 3 ? '%<' : '') . '%'. i . 'T%{lightline#onetab(' . i . ',' . (i == nr) . ')}' . (i == cnt ? '%T' : ''))
   endfor
-  let abbr = '...'
-  let n = min([max([s:lightline.winwidth / 40, 2]), 8])
+  let abbr = '…'
+  let n = min([max([&columns / 40, 2]), 8])
   if len(x) > n && len(z) > n
     let x = extend(add(x[:n/2-1], abbr), x[-(n+1)/2:])
     let z = extend(add(z[:(n+1)/2-1], abbr), z[-n/2:])
